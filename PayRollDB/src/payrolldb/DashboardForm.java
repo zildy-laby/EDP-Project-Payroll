@@ -3,7 +3,7 @@ package payrolldb;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.sql.*; // Import SQL para sa counts
+import java.sql.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
@@ -13,17 +13,23 @@ public class DashboardForm extends JFrame {
     private JButton btnDashboard, btnEmployee, btnAttendance, btnCalendar, btnPayroll, btnPayslip, btnLogOut;
     private JLabel DashBoardLbl, DateLbl, dateValueLbl;
 
-    // --- ETO YUNG MGA LABELS NA MAGIGING LIVE ---
+    // Live Labels
     private JLabel lblTotalEmp, lblPresentToday, lblInterns;
+    private Timer refreshTimer;
 
     public DashboardForm() {
         initComponents();
         setupNavigation();
         initLiveDate();
+        
+        // --- AUTO REFRESH EVERY 30 SECONDS ---
+        refreshTimer = new Timer(30000, e -> refreshDashboardStats());
+        refreshTimer.start();
 
         setTitle("Payroll System - Main Dashboard");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
+        setMinimumSize(new Dimension(1100, 800));
         setLocationRelativeTo(null);
     }
 
@@ -67,13 +73,12 @@ public class DashboardForm extends JFrame {
         welcomeLbl.setForeground(Color.WHITE);
         mainHome.add(welcomeLbl, BorderLayout.NORTH);
 
-        // 2. STATS CARDS CONTAINER
+        // STATS CARDS
         JPanel statsGrid = new JPanel(new GridLayout(1, 4, 20, 0));
         statsGrid.setOpaque(false);
         statsGrid.setPreferredSize(new Dimension(100, 150));
         statsGrid.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
 
-        // Initialize Labels with Loading text
         lblTotalEmp = new JLabel("  0");
         lblPresentToday = new JLabel("  0");
         lblInterns = new JLabel("  0");
@@ -85,7 +90,7 @@ public class DashboardForm extends JFrame {
 
         mainHome.add(statsGrid, BorderLayout.CENTER);
 
-        // 3. RECENT ACTIVITY PANEL
+        // RECENT ACTIVITY
         JPanel activityPanel = new JPanel(new BorderLayout());
         activityPanel.setBackground(new Color(21, 24, 32));
         activityPanel.setBorder(BorderFactory.createTitledBorder(
@@ -97,8 +102,7 @@ public class DashboardForm extends JFrame {
         activityLog.setForeground(new Color(200, 200, 200));
         activityLog.setFont(new Font("Consolas", Font.PLAIN, 13));
         activityLog.setEditable(false);
-        activityLog.setText(" [SYSTEM] Fetching live data from SQL Server...\n" +
-                            " [SYSTEM] Database connection active.\n" +
+        activityLog.setText(" [SYSTEM] Database connection active.\n" +
                             " [ADMIN] Dashboard statistics refreshed.");
         
         JScrollPane scroll = new JScrollPane(activityLog);
@@ -107,37 +111,32 @@ public class DashboardForm extends JFrame {
         activityPanel.setPreferredSize(new Dimension(100, 250));
         
         mainHome.add(activityPanel, BorderLayout.SOUTH);
-
         contentPanel.add(mainHome, BorderLayout.CENTER);
         
-        // --- TAWAGIN ANG SQL COUNTS ---
         refreshDashboardStats();
-
         contentPanel.revalidate();
         contentPanel.repaint();
     }
 
-    // --- ETO ANG TAGA-BILANG SA SQL ---
     private void refreshDashboardStats() {
         try (Connection conn = DBConnection.getConnection()) {
             if (conn == null) return;
 
-            // 1. Bilangin lahat ng Employees
-            String sqlTotal = "SELECT COUNT(*) FROM Employees";
-            PreparedStatement ps1 = conn.prepareStatement(sqlTotal);
-            ResultSet rs1 = ps1.executeQuery();
+            // 1. Total Employees
+            Statement st1 = conn.createStatement();
+            ResultSet rs1 = st1.executeQuery("SELECT COUNT(*) FROM Employees");
             if (rs1.next()) lblTotalEmp.setText("  " + rs1.getInt(1));
 
-            // 2. Bilangin ang Present ngayong araw (Base sa Attendance table)
-            String sqlPresent = "SELECT COUNT(*) FROM Attendance WHERE CAST(AttendanceDate AS DATE) = CAST(GETDATE() AS DATE) AND Status = 'Present'";
-            PreparedStatement ps2 = conn.prepareStatement(sqlPresent);
-            ResultSet rs2 = ps2.executeQuery();
+            // 2. Present Today - Gamit ang column na [Date] base sa SSMS screenshot mo
+            String sqlPresent = "SELECT COUNT(DISTINCT EmpID) FROM Attendance " +
+                               "WHERE [Date] = CAST(GETDATE() AS DATE)";
+            Statement st2 = conn.createStatement();
+            ResultSet rs2 = st2.executeQuery(sqlPresent);
             if (rs2.next()) lblPresentToday.setText("  " + rs2.getInt(1));
 
-            // 3. Bilangin ang Interns lang (Filter by EmpType)
-            String sqlInterns = "SELECT COUNT(*) FROM Employees WHERE EmpType = 'Intern'";
-            PreparedStatement ps3 = conn.prepareStatement(sqlInterns);
-            ResultSet rs3 = ps3.executeQuery();
+            // 3. Active Interns
+            Statement st3 = conn.createStatement();
+            ResultSet rs3 = st3.executeQuery("SELECT COUNT(*) FROM Employees WHERE EmpType = 'Intern'");
             if (rs3.next()) lblInterns.setText("  " + rs3.getInt(1));
 
         } catch (SQLException e) {
@@ -164,7 +163,6 @@ public class DashboardForm extends JFrame {
         return card;
     }
 
-    // [Rest of your initComponents, initLiveDate, createNavButton methods...]
     private void initLiveDate() {
         LocalDate today = LocalDate.now();
         dateValueLbl.setText(today.format(DateTimeFormatter.ofPattern("MMM d, yyyy")));
@@ -214,18 +212,11 @@ public class DashboardForm extends JFrame {
         btnPayslip = createNavButton("🧾  Payslip");
         btnLogOut = createNavButton("🚪  Log Out");
 
-        SidebarPanel.add(btnDashboard);
-        SidebarPanel.add(btnEmployee);
-        SidebarPanel.add(btnAttendance);
-        SidebarPanel.add(btnCalendar);
-        SidebarPanel.add(btnPayroll);
-        SidebarPanel.add(btnPayslip);
+        SidebarPanel.add(btnDashboard); SidebarPanel.add(btnEmployee); SidebarPanel.add(btnAttendance);
+        SidebarPanel.add(btnCalendar); SidebarPanel.add(btnPayroll); SidebarPanel.add(btnPayslip);
         
-        JPanel spacer = new JPanel();
-        spacer.setOpaque(false);
-        spacer.setPreferredSize(new Dimension(230, 100)); 
-        SidebarPanel.add(spacer);
-        SidebarPanel.add(btnLogOut);
+        JPanel spacer = new JPanel(); spacer.setOpaque(false); spacer.setPreferredSize(new Dimension(230, 80)); 
+        SidebarPanel.add(spacer); SidebarPanel.add(btnLogOut);
 
         contentPanel = new JPanel(new BorderLayout());
         contentPanel.setBackground(new Color(13, 15, 20));
@@ -241,8 +232,7 @@ public class DashboardForm extends JFrame {
         btn.setBackground(new Color(30, 35, 45));
         btn.setForeground(Color.WHITE);
         btn.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        btn.setFocusPainted(false);
-        btn.setBorderPainted(false);
+        btn.setFocusPainted(false); btn.setBorderPainted(false);
         btn.setHorizontalAlignment(SwingConstants.LEFT);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btn.addMouseListener(new MouseAdapter() {

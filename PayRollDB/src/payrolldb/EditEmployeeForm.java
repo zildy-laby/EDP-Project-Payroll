@@ -5,15 +5,15 @@ import java.awt.*;
 import java.sql.*;
 
 public class EditEmployeeForm extends JFrame {
-    private JTextField txtName, txtDept, txtPos, txtSalary;
+    private JTextField txtName, txtDept, txtPos, txtSalary, txtPass, txtPin;
     private JComboBox<String> cbType;
     private String employeeId;
 
     public EditEmployeeForm(String id) {
         this.employeeId = id;
         setTitle("Edit Employee - " + id);
-        setSize(400, 450);
-        setLayout(new GridLayout(7, 2, 10, 10));
+        setSize(450, 550); // Nilakihan ko konti para sa extra fields
+        setLayout(new GridLayout(9, 2, 10, 10)); // Ginawang 9 rows
         setLocationRelativeTo(null);
 
         // UI Components
@@ -23,16 +23,22 @@ public class EditEmployeeForm extends JFrame {
         add(new JLabel(" Type:")); 
         cbType = new JComboBox<>(new String[]{"Full-time", "Part-time", "Intern"}); add(cbType);
         add(new JLabel(" Salary/Rate:")); txtSalary = new JTextField(); add(txtSalary);
+        
+        // --- NEW FIELDS ---
+        add(new JLabel(" Login Password:")); txtPass = new JTextField(); add(txtPass);
+        add(new JLabel(" Attendance PIN:")); txtPin = new JTextField(); add(txtPin);
 
         JButton btnUpdate = new JButton("Update Employee");
         JButton btnCancel = new JButton("Cancel");
 
+        // Styling buttons para cool tignan
+        btnUpdate.setBackground(new Color(40, 167, 69));
+        btnUpdate.setForeground(Color.WHITE);
+
         add(btnUpdate); add(btnCancel);
 
-        // 1. Load current data from DB
         loadCurrentData();
 
-        // 2. Action Listeners
         btnUpdate.addActionListener(e -> updateData());
         btnCancel.addActionListener(e -> dispose());
     }
@@ -50,6 +56,8 @@ public class EditEmployeeForm extends JFrame {
                 txtPos.setText(rs.getString("Position"));
                 cbType.setSelectedItem(rs.getString("EmpType"));
                 txtSalary.setText(String.valueOf(rs.getDouble("BasicSalary")));
+                txtPass.setText(rs.getString("Password"));
+                txtPin.setText(rs.getString("PIN")); // Load ang PIN
             }
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Error loading data: " + ex.getMessage());
@@ -58,7 +66,8 @@ public class EditEmployeeForm extends JFrame {
 
     private void updateData() {
         try (Connection conn = DBConnection.getConnection()) {
-            String sql = "UPDATE Employees SET FullName=?, Department=?, Position=?, EmpType=?, BasicSalary=? WHERE EmpID=?";
+            // Update SQL kasama ang Password at PIN
+            String sql = "UPDATE Employees SET FullName=?, Department=?, Position=?, EmpType=?, BasicSalary=?, Password=?, PIN=? WHERE EmpID=?";
             PreparedStatement ps = conn.prepareStatement(sql);
             
             ps.setString(1, txtName.getText());
@@ -66,7 +75,9 @@ public class EditEmployeeForm extends JFrame {
             ps.setString(3, txtPos.getText());
             ps.setString(4, cbType.getSelectedItem().toString());
             ps.setDouble(5, Double.parseDouble(txtSalary.getText().replace(",", "")));
-            ps.setString(6, employeeId);
+            ps.setString(6, txtPass.getText()); // Update Password
+            ps.setString(7, txtPin.getText());  // Update PIN
+            ps.setString(8, employeeId);
 
             int result = ps.executeUpdate();
             if (result > 0) {
